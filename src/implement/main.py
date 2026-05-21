@@ -7,6 +7,20 @@ import time
 from collections import deque
 import os
 
+#highway
+# line1= [(250, 79), (445, 82)]
+# line2= [(94, 342), (597, 354)]
+#vidtest
+# line1= [(6, 242), (476, 280)]
+# line2= [(516, 407), (2, 373)]
+#test
+# line1= [(307, 342), (622, 342)]
+# line2= [(400, 226), (185, 226)]
+#OQ
+# [191, 122], [69, 161], [295, 531], [624, 317]
+# KQ
+# [281, 146], [179, 180], [295, 429], [556, 304]
+
 # --- CẤU HÌNH ---
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 VIDEO_PATH = os.path.join(ROOT_DIR, "datasets", "OQNA6220.mp4")
@@ -15,8 +29,8 @@ YAML_PATH = os.path.join(ROOT_DIR, "data.yaml")
 
 # Cấu hình vùng Homography
 SRC_PTS = np.array([[191, 122], [69, 161], [295, 531], [624, 317]], dtype=np.float32)
-REAL_WIDTH = 3.5
-REAL_LENGTH = 17.0
+REAL_WIDTH = 4
+REAL_LENGTH = 20
 
 # Tham số tính tốc độ
 CLEANUP_TIME = 2.0
@@ -134,7 +148,7 @@ def main():
         estimator.cleanup(current_time_sec)
         cv2.polylines(frame, [np.int32(SRC_PTS)], isClosed=True, color=(0, 255, 255), thickness=2)
 
-        results = model.track(frame, persist=True, verbose=False, conf=0.45)
+        results = model.track(frame, persist=True, verbose=False)
         
         if results[0].boxes is not None and results[0].boxes.id is not None:
             boxes = results[0].boxes.xyxy.cpu().numpy()
