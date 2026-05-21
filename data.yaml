@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 4
+names: ['xe buyt', 'xe hoi', 'xe may', 'xe tai']
+
+roboflow:
+  workspace: thng-phm
+  project: vehicle-detection-7djne
+  version: 7
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/thng-phm/vehicle-detection-7djne/dataset/7
