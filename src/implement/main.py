@@ -23,19 +23,20 @@ import os
 
 # --- CẤU HÌNH ---
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-VIDEO_PATH = os.path.join(ROOT_DIR, "datasets", "OQNA6220.mp4")
+VIDEO_PATH = os.path.join(ROOT_DIR, "datasets", "KQAE7521.MP4")
 MODEL_PATH = os.path.join(ROOT_DIR, "best_.pt")
 YAML_PATH = os.path.join(ROOT_DIR, "data.yaml")
 
 # Cấu hình vùng Homography
-SRC_PTS = np.array([[191, 122], [69, 161], [295, 531], [624, 317]], dtype=np.float32)
-REAL_WIDTH = 4
-REAL_LENGTH = 20
+SRC_PTS = np.array([[281, 146], [179, 180], [295, 429], [556, 304]], dtype=np.float32)
+REAL_WIDTH = 4.5
+REAL_LENGTH = 18
 
 # Tham số tính tốc độ
 CLEANUP_TIME = 2.0
 DISTANCE_THRESHOLD = 0.5
 MIN_TIME_DIFF = 0.3
+SPEED_LIMIT = 50
 
 
 class SpeedEstimator:
@@ -159,27 +160,27 @@ def main():
                 x1, y1, x2, y2 = box
                 xcenter, bottom_y = int((x1 + x2) / 2), int(y2)
                 
-                # Kiểm tra xe nằm trong vùng đo không
+                # check xe trong vùng
                 if cv2.pointPolygonTest(np.int32(SRC_PTS), (xcenter, bottom_y), False) >= 0:
                     label = classes[cls_id]
                     
                     # Tính toán tốc độ
                     current_speed = estimator.update_and_get_speed(obj_id, label, (xcenter, bottom_y), current_time_sec)
 
-                    # Vẽ UI
-                    cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-                    cv2.circle(frame, (xcenter, bottom_y), 4, (0, 0, 255), -1)
+                    if current_speed is not None and current_speed > SPEED_LIMIT:
+                        color = (0, 0, 255) 
+                        speed_text_color = (0, 0, 255)
+                    else:
+                        color = (0, 255, 0)  
+                        speed_text_color = (0, 255, 255) 
+                    #vẽ bbox                        
+                    cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
+                    cv2.circle(frame, (xcenter, bottom_y), 4, color, -1)
                     
                     draw_text_safe(frame, f'{label} ID:{obj_id}', (int(x1), int(y1) - 10), (255, 255, 255), 1)
                     
                     speed_str = f'Speed: {current_speed:.1f} km/h' if current_speed is not None else '--- km/h'
-                    draw_text_safe(frame, speed_str, (int(x2) - 40, int(y2) - 8), (0, 255, 255), 2)
-
-        # Tính FPS
-        curr_time = time.time()
-        fps = 1 / (curr_time - prev_time) if (curr_time - prev_time) > 0 else 0
-        prev_time = curr_time
-        cv2.putText(frame, f'FPS: {int(fps)}', (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                    draw_text_safe(frame, speed_str, (int(x2) - 40, int(y2) - 8), speed_text_color, 2)
 
         out.write(frame)
         cv2.imshow("Speed Estimate", frame)
