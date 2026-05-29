@@ -6,6 +6,7 @@ import math
 import time
 from collections import deque
 import os
+import argparse
 
 #highway
 # line1= [(250, 79), (445, 82)]
@@ -36,12 +37,26 @@ REAL_LENGTH = 18
 CLEANUP_TIME = 2.0
 DISTANCE_THRESHOLD = 0.5
 MIN_TIME_DIFF = 0.3
-SPEED_LIMIT = 50
-
+SPEED_LIMIT = 25
+def args():
+    parser = argparse.ArgumentParser(description='Speed Estimation and Vehicle Tracking')
+    parser.add_argument('--video', '-v',type=str, default=VIDEO_PATH, help='Path to video file')
+    parser.add_argument('--model', '-m', type=str, default=MODEL_PATH, help='Path to model file')
+    parser.add_argument('--yaml', '-y', type=str, default=YAML_PATH, help='Path to yaml file')
+    parser.add_argument('--src_pts', '-sp', type=np.array, default=SRC_PTS, help='Path to yaml file')
+    parser.add_argument('--real_width', '-rw', type=float, default=REAL_WIDTH, help='Real width of the road')
+    parser.add_argument('--real_length', '-rl', type=float, default=REAL_LENGTH, help='Real length of the road')
+    parser.add_argument('--cleanup_time', '-ct', type=float, default=CLEANUP_TIME, help='Cleanup time')
+    parser.add_argument('--distance_threshold', '-dt', type=float, default=DISTANCE_THRESHOLD, help='Distance threshold')
+    parser.add_argument('--min_time_diff', '-mtd', type=float, default=MIN_TIME_DIFF, help='Min time diff')   
+    parser.add_argument('--speed_limit', '-sl', type=float, default=SPEED_LIMIT, help='Speed limit')
+    parser.add_argument('--output', '-o', type=str, default='output_speed.mp4', help='Path to output video file')
+    parser.add_argument('--save', '-s', type=bool, default=True, help='Save output video')
+    return parser.parse_args()
 
 class SpeedEstimator:
     """Lớp quản lý trạng thái theo dõi và tính toán tốc độ của các xe."""
-    def __init__(self, src_pts, real_width, real_length):
+    def __init__(self, src_pts, real_width, real_length, speed_limit=SPEED_LIMIT):
         dst_pts = np.array([
             [0, 0], [real_width, 0], [real_width, real_length], [0, real_length]
         ], dtype=np.float32)
@@ -53,6 +68,7 @@ class SpeedEstimator:
         self.last_seen = {}
         self.labels = {}
         self.src_pts = src_pts
+        self.speed_limit = speed_limit
 
     def transform_point(self, pt):
         """Chuyển đổi tọa độ pixel sang mét"""
@@ -94,24 +110,19 @@ class SpeedEstimator:
         return self.speed_display.get(vehicle_id)
 
     def cleanup(self, current_time):
-        """Xoá các xe đã ra khỏi khung hình và in tốc độ max"""
+        """Xoá các xe đã ra khỏi khung hình và chỉ in tốc độ nếu vượt speed limit"""
         expired_ids = [k for k, v in self.last_seen.items() if current_time - v > CLEANUP_TIME]
         for k in expired_ids:
             if k in self.max_speed:
                 label = self.labels.get(k, "Unknown")
-                print(f'Xe {label} ID:{k} rời vùng | Max Speed: {self.max_speed[k]:.1f} km/h')
+                max_spd = self.max_speed[k]
+                if max_spd > self.speed_limit:
+                    print(f'⚠️ Xe {label} ID:{k} | Vượt tốc độ giới hạn! Max Speed: {max_spd:.1f} km/h (Limit: {self.speed_limit:.1f} km/h)')
             self.history.pop(k, None)
             self.speed_display.pop(k, None)
             self.max_speed.pop(k, None)
             self.last_seen.pop(k, None)
             self.labels.pop(k, None)
-
-    def final_cleanup(self):
-        """In tốc độ của những xe còn lại khi video kết thúc"""
-        for k, speed in self.max_speed.items():
-            label = self.labels.get(k, "Unknown")
-            print(f'Xe {label} ID:{k} kết thúc video | Max Speed: {speed:.1f} km/h')
-
 
 def draw_text_safe(img, text, pos, color, thickness=1):
     """Vẽ text an toàn, tránh bị khuất mép trên màn hình"""
@@ -120,25 +131,22 @@ def draw_text_safe(img, text, pos, color, thickness=1):
     cv2.putText(img, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, thickness)
 
 
-def main():
-    # 1. Khởi tạo và đọc cấu hình
+def main(args):
     with open(YAML_PATH) as f:
         classes = yaml.safe_load(f)['names']
     print(f"Loaded classes: {classes}")
 
-    model = YOLO(MODEL_PATH)
-    cap = cv2.VideoCapture(VIDEO_PATH)
+    model = YOLO(args.model)
+    cap = cv2.VideoCapture(args.video)
     
     width, height = 640, 640
     fps_video = int(cap.get(cv2.CAP_PROP_FPS)) or 30
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter('output_speed.mp4', fourcc, fps_video, (width, height))
+    out = cv2.VideoWriter(args.output, fourcc, fps_video, (width, height))
 
-    # 2. Khởi tạo công cụ tính tốc độ
-    estimator = SpeedEstimator(SRC_PTS, REAL_WIDTH, REAL_LENGTH)
+    estimator = SpeedEstimator(args.src_pts, args.real_width, args.real_length, args.speed_limit)
     prev_time = time.time()
 
-    # 3. Vòng lặp chính xử lý Video
     while cap.isOpened():
         flag, frame = cap.read()
         if not flag: break
@@ -147,7 +155,7 @@ def main():
         frame = cv2.resize(frame, (width, height))
         
         estimator.cleanup(current_time_sec)
-        cv2.polylines(frame, [np.int32(SRC_PTS)], isClosed=True, color=(0, 255, 255), thickness=2)
+        cv2.polylines(frame, [np.int32(args.src_pts)], isClosed=True, color=(0, 255, 255), thickness=2)
 
         results = model.track(frame, persist=True, verbose=False)
         
@@ -161,23 +169,23 @@ def main():
                 xcenter, bottom_y = int((x1 + x2) / 2), int(y2)
                 
                 # check xe trong vùng
-                if cv2.pointPolygonTest(np.int32(SRC_PTS), (xcenter, bottom_y), False) >= 0:
+                if cv2.pointPolygonTest(np.int32(args.src_pts), (xcenter, bottom_y), False) >= 0:
                     label = classes[cls_id]
                     
                     # Tính toán tốc độ
                     current_speed = estimator.update_and_get_speed(obj_id, label, (xcenter, bottom_y), current_time_sec)
 
-                    if current_speed is not None and current_speed > SPEED_LIMIT:
-                        color = (0, 0, 255) 
-                        speed_text_color = (0, 0, 255)
+                    if current_speed is not None and current_speed > args.speed_limit:
+                        color = (100, 100, 255) 
+                        speed_text_color = (100, 100, 255)
                     else:
-                        color = (0, 255, 0)  
-                        speed_text_color = (0, 255, 255) 
+                        color = (100, 255, 100)  
+                        speed_text_color = (100, 255, 100) 
                     #vẽ bbox                        
                     cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
                     cv2.circle(frame, (xcenter, bottom_y), 4, color, -1)
                     
-                    draw_text_safe(frame, f'{label} ID:{obj_id}', (int(x1), int(y1) - 10), (255, 255, 255), 1)
+                    draw_text_safe(frame, f'{label} ID:{obj_id}', (int(x1), int(y1) - 10), (100, 255, 100), 2)
                     
                     speed_str = f'Speed: {current_speed:.1f} km/h' if current_speed is not None else '--- km/h'
                     draw_text_safe(frame, speed_str, (int(x2) - 40, int(y2) - 8), speed_text_color, 2)
@@ -189,7 +197,6 @@ def main():
     cap.release()
     out.release()
     cv2.destroyAllWindows()
-    estimator.final_cleanup()
 
 if __name__ == '__main__':
-    main()
+    main(args())
