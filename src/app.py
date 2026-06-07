@@ -8,10 +8,11 @@ import pandas as pd
 from ultralytics import YOLO
 
 # Import các biến và lớp từ file main.py
-from implement.main import (
-    SpeedEstimator, draw_text_safe,
+from main import (
     MODEL_PATH, YAML_PATH, SRC_PTS, REAL_WIDTH, REAL_LENGTH
 )
+from core.speed_estimator import SpeedEstimator
+from utils.drawing_utils import draw_text_safe
 
 # ---------------------------------------------------------------------------
 # Cấu hình trang
@@ -400,7 +401,7 @@ if st.session_state["running"]:
         estimator = SpeedEstimator(SRC_PTS, REAL_WIDTH, REAL_LENGTH)
 
         # Override cleanup time từ sidebar
-        import implement.main as _main_module
+        import main as _main_module
         _main_module.CLEANUP_TIME = cleanup_time
 
         # Theo dõi thống kê
