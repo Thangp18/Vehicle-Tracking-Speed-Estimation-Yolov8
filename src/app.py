@@ -1,18 +1,24 @@
+import os
 import streamlit as st
 import cv2
-import tempfile
 import yaml
 import numpy as np
 import time
+import tempfile
 import pandas as pd
 from ultralytics import YOLO
 
-# Import các biến và lớp từ file main.py
-from main import (
-    MODEL_PATH, YAML_PATH, SRC_PTS, REAL_WIDTH, REAL_LENGTH
-)
+from main import MODEL_PATH, YAML_PATH, SRC_PTS, REAL_WIDTH, REAL_LENGTH
 from core.speed_estimator import SpeedEstimator
 from utils.drawing_utils import draw_text_safe
+
+from ui.styles import apply_custom_css, get_class_color
+from ui.sidebar import render_sidebar
+from ui.dashboard import (
+    render_header, render_status, render_metrics, 
+    render_violations_realtime, render_violations_history, 
+    render_idle_screen, render_history_and_charts
+)
 
 # ---------------------------------------------------------------------------
 # Cấu hình trang
@@ -27,179 +33,22 @@ st.set_page_config(
 # ---------------------------------------------------------------------------
 # CSS – Dark theme + Glassmorphism
 # ---------------------------------------------------------------------------
-st.markdown("""
-<style>
-/* ===== Global ===== */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
-
-html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
-}
-
-.stApp {
-    background: linear-gradient(135deg, #0f1117 0%, #1a1d2e 50%, #0d1b2a 100%);
-    color: #e2e8f0;
-}
-
-/* ===== Header gradient banner ===== */
-.hero-banner {
-    background: linear-gradient(135deg, #1e3a5f 0%, #0d2137 40%, #162032 100%);
-    border: 1px solid rgba(56, 189, 248, 0.2);
-    border-radius: 16px;
-    padding: 28px 36px;
-    margin-bottom: 24px;
-    position: relative;
-    overflow: hidden;
-}
-.hero-banner::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -10%;
-    width: 400px;
-    height: 400px;
-    background: radial-gradient(circle, rgba(56,189,248,0.08) 0%, transparent 70%);
-}
-.hero-title {
-    font-size: 2rem;
-    font-weight: 800;
-    background: linear-gradient(90deg, #38bdf8, #818cf8, #34d399);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin: 0 0 8px 0;
-}
-.hero-subtitle {
-    color: #94a3b8;
-    font-size: 0.95rem;
-    margin: 0;
-}
-
-/* ===== Metric cards ===== */
-.metric-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    margin-bottom: 20px;
-}
-.metric-card {
-    background: rgba(255,255,255,0.04);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 14px;
-    padding: 20px 18px;
-    text-align: center;
-    transition: border-color 0.3s;
-}
-.metric-card:hover { border-color: rgba(56,189,248,0.3); }
-.metric-icon { font-size: 1.6rem; margin-bottom: 6px; }
-.metric-value {
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: #38bdf8;
-    line-height: 1.1;
-}
-.metric-label {
-    font-size: 0.72rem;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-top: 4px;
-}
-
-/* ===== Video frame container ===== */
-.video-container {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 14px;
-    padding: 12px;
-}
-
-/* ===== Status badge ===== */
-.status-running {
-    display: inline-block;
-    background: rgba(52,211,153,0.15);
-    color: #34d399;
-    border: 1px solid rgba(52,211,153,0.3);
-    border-radius: 20px;
-    padding: 4px 14px;
-    font-size: 0.82rem;
-    font-weight: 600;
-}
-.status-stopped {
-    display: inline-block;
-    background: rgba(248,113,113,0.15);
-    color: #f87171;
-    border: 1px solid rgba(248,113,113,0.3);
-    border-radius: 20px;
-    padding: 4px 14px;
-    font-size: 0.82rem;
-    font-weight: 600;
-}
-.status-idle {
-    display: inline-block;
-    background: rgba(148,163,184,0.1);
-    color: #94a3b8;
-    border: 1px solid rgba(148,163,184,0.2);
-    border-radius: 20px;
-    padding: 4px 14px;
-    font-size: 0.82rem;
-    font-weight: 600;
-}
-
-/* ===== Sidebar ===== */
-section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #111827 0%, #0f172a 100%);
-    border-right: 1px solid rgba(255,255,255,0.06);
-}
-section[data-testid="stSidebar"] .stSlider > div { color: #e2e8f0; }
-
-/* ===== Buttons ===== */
-.stButton > button {
-    width: 100%;
-    border-radius: 10px;
-    font-weight: 600;
-    font-size: 0.9rem;
-    padding: 12px 0;
-    border: none;
-    transition: all 0.25s ease;
-}
-div[data-testid="stButton"]:first-of-type > button {
-    background: linear-gradient(135deg, #0ea5e9, #6366f1);
-    color: white;
-}
-div[data-testid="stButton"]:first-of-type > button:hover {
-    background: linear-gradient(135deg, #38bdf8, #818cf8);
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(14,165,233,0.35);
-}
-
-/* ===== Dataframe ===== */
-.stDataFrame { border-radius: 10px; overflow: hidden; }
-
-/* ===== Divider ===== */
-hr { border-color: rgba(255,255,255,0.07) !important; }
-
-/* ===== Hide Streamlit branding ===== */
-#MainMenu, footer { visibility: hidden; }
-</style>
-""", unsafe_allow_html=True)
+apply_custom_css()
 
 # ---------------------------------------------------------------------------
-# Màu bounding box theo loại xe
+# Tìm file config camera
 # ---------------------------------------------------------------------------
-CLASS_COLORS = {
-    "xe buyt": (255, 165,   0),   # cam
-    "xe hoi":  (  0, 200, 100),   # xanh lá
-    "xe may":  ( 30, 144, 255),   # xanh dương
-    "xe tai":  (220,  50,  50),   # đỏ
-}
-DEFAULT_COLOR = (128, 0, 255)  # tím cho class không xác định
-
-
-def get_class_color(label: str):
-    return CLASS_COLORS.get(label.lower(), DEFAULT_COLOR)
-
+CONFIG_PATH = None
+possible_paths = [
+    os.path.join(os.path.dirname(__file__), "..", "..", "cameras_config.yaml"),
+    os.path.join(os.path.dirname(__file__), "..", "cameras_config.yaml"),
+    os.path.join(os.path.dirname(__file__), "cameras_config.yaml"),
+    "cameras_config.yaml"
+]
+for p in possible_paths:
+    if os.path.exists(p):
+        CONFIG_PATH = os.path.abspath(p)
+        break
 
 # ---------------------------------------------------------------------------
 # Session State khởi tạo
@@ -207,175 +56,70 @@ def get_class_color(label: str):
 if "running" not in st.session_state:
     st.session_state["running"] = False
 if "speed_log" not in st.session_state:
-    st.session_state["speed_log"] = []   # list of {id, label, max_speed}
+    st.session_state["speed_log"] = []
+if "violation_log" not in st.session_state:
+    st.session_state["violation_log"] = []
 if "stats" not in st.session_state:
     st.session_state["stats"] = {
-        "total_vehicles": 0,
-        "avg_speed": 0.0,
-        "max_speed": 0.0,
-        "fps": 0.0,
+        "total_vehicles": 0, "avg_speed": 0.0,
+        "max_speed": 0.0, "fps": 0.0,
     }
+if "output_video_path" not in st.session_state:
+    st.session_state["output_video_path"] = None
 
 # ---------------------------------------------------------------------------
-# Sidebar
+# Rendering Sidebar
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown("""
-    <div style='text-align:center; padding: 12px 0 4px;'>
-        <div style='font-size:2.5rem'>🚗</div>
-        <div style='font-weight:700; font-size:1rem; color:#38bdf8'>Speed Estimator</div>
-        <div style='font-size:0.75rem; color:#475569'>YOLOv8 + Homography</div>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown("---")
+    sidebar_params = render_sidebar(CONFIG_PATH)
 
-    st.markdown("**📂 Nguồn đầu vào**")
-    source_type = st.radio(
-        "Chọn nguồn:",
-        ("Video", "Camera (Webcam)"),
-        label_visibility="collapsed"
-    )
-
-    video_path = None
-    if source_type == "Video":
-        uploaded_file = st.file_uploader(
-            "Tải lên video", type=["mp4", "avi", "mov"],
-            help="Hỗ trợ mp4, avi, mov"
-        )
-        if uploaded_file is not None:
-            tfile = tempfile.NamedTemporaryFile(delete=False)
-            tfile.write(uploaded_file.read())
-            video_path = tfile.name
-    else:
-        camera_id = st.number_input("Camera ID", min_value=0, max_value=5, value=0, step=1)
-        video_path = int(camera_id)
-
-    st.markdown("---")
-    st.markdown("**⚙️ Tham số xử lý**")
-
-    conf_threshold = st.slider(
-        "Confidence Threshold", min_value=0.1, max_value=0.9,
-        value=0.35, step=0.05,
-        help="Ngưỡng tin cậy tối thiểu để chấp nhận detection"
-    )
-    frame_size = st.select_slider(
-        "Kích thước khung (px)", options=[480, 640, 720], value=640,
-        help="Kích thước resize frame trước khi xử lý"
-    )
-    cleanup_time = st.slider(
-        "Cleanup Time (giây)", min_value=1.0, max_value=6.0,
-        value=2.0, step=0.5,
-        help="Thời gian chờ trước khi xóa xe khỏi bộ nhớ"
-    )
-
-    st.markdown("---")
-
-    col_start, col_stop = st.columns(2)
-    with col_start:
-        start_btn = st.button("▶ Bắt đầu", use_container_width=True)
-    with col_stop:
-        stop_btn = st.button("⏹ Dừng", use_container_width=True)
-
-    if start_btn:
-        st.session_state["running"] = True
-        st.session_state["speed_log"] = []
-        st.session_state["stats"] = {
-            "total_vehicles": 0, "avg_speed": 0.0,
-            "max_speed": 0.0, "fps": 0.0,
-        }
-
-    if stop_btn:
-        st.session_state["running"] = False
+# Extract params
+video_path = sidebar_params["video_path"]
+source_type = sidebar_params["source_type"]
+frame_size = sidebar_params["frame_size"]
+roi_pts = sidebar_params["roi_pts"]
+conf_threshold = sidebar_params["conf_threshold"]
+speed_limit = sidebar_params["speed_limit"]
+real_width = sidebar_params["real_width"]
+real_length = sidebar_params["real_length"]
+cleanup_time = sidebar_params["cleanup_time"]
+distance_threshold = sidebar_params["distance_threshold"]
+min_time_diff = sidebar_params["min_time_diff"]
+save_output_video = sidebar_params["save_output_video"]
 
 # ---------------------------------------------------------------------------
-# Main Area – Header
+# Main Area
 # ---------------------------------------------------------------------------
-st.markdown("""
-<div class="hero-banner">
-    <p class="hero-title">🚗 Vehicle Speed Estimation System</p>
-    <p class="hero-subtitle">
-        Nhận diện & theo dõi phương tiện theo thời gian thực với <strong>YOLOv8</strong>
-        và ước tính tốc độ qua thuật toán <strong>Homography</strong>.
-        Thiết lập tham số tại sidebar rồi nhấn <em>Bắt đầu</em>.
-    </p>
-</div>
-""", unsafe_allow_html=True)
+render_header()
 
-# ---------------------------------------------------------------------------
-# Metric Cards
-# ---------------------------------------------------------------------------
-stats = st.session_state["stats"]
-
-metric_html = f"""
-<div class="metric-grid">
-    <div class="metric-card">
-        <div class="metric-icon">🚘</div>
-        <div class="metric-value">{stats['total_vehicles']}</div>
-        <div class="metric-label">Tổng xe phát hiện</div>
-    </div>
-    <div class="metric-card">
-        <div class="metric-icon">📊</div>
-        <div class="metric-value">{stats['avg_speed']:.1f} <span style='font-size:1rem;color:#94a3b8'>km/h</span></div>
-        <div class="metric-label">Tốc độ trung bình</div>
-    </div>
-    <div class="metric-card">
-        <div class="metric-icon">🏎️</div>
-        <div class="metric-value">{stats['max_speed']:.1f} <span style='font-size:1rem;color:#94a3b8'>km/h</span></div>
-        <div class="metric-label">Tốc độ cao nhất</div>
-    </div>
-    <div class="metric-card">
-        <div class="metric-icon">⚡</div>
-        <div class="metric-value">{stats['fps']:.1f}</div>
-        <div class="metric-label">FPS xử lý</div>
-    </div>
-</div>
-"""
-metric_placeholder = st.empty()
-metric_placeholder.markdown(metric_html, unsafe_allow_html=True)
-
-# ---------------------------------------------------------------------------
-# Status + Progress
-# ---------------------------------------------------------------------------
 status_placeholder = st.empty()
 progress_placeholder = st.empty()
 
-# ---------------------------------------------------------------------------
-# Video display
-# ---------------------------------------------------------------------------
-st.markdown('<div class="video-container">', unsafe_allow_html=True)
-stframe = st.empty()
-st.markdown('</div>', unsafe_allow_html=True)
+col_video_main, col_metrics_main = st.columns([7, 3])
+
+with col_video_main:
+    st.markdown('<div class="video-container">', unsafe_allow_html=True)
+    stframe = st.empty()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with col_metrics_main:
+    metric_placeholder = st.empty()
+    violation_title_placeholder = st.empty()
+    violation_placeholder = st.empty()
+
+st.markdown("---")
+col_history, col_chart = st.columns([1, 1])
 
 # ---------------------------------------------------------------------------
-# Speed history table placeholder (hiển thị sau khi xong)
-# ---------------------------------------------------------------------------
-table_placeholder = st.empty()
-
-# ---------------------------------------------------------------------------
-# Hiển thị bảng lịch sử nếu đã có dữ liệu từ lần chạy trước
-# ---------------------------------------------------------------------------
-if st.session_state["speed_log"] and not st.session_state["running"]:
-    df = pd.DataFrame(st.session_state["speed_log"])
-    df = df.sort_values("max_speed", ascending=False).reset_index(drop=True)
-    df.index += 1
-    df.columns = ["ID xe", "Loại xe", "Tốc độ tối đa (km/h)"]
-    table_placeholder.dataframe(
-        df.style.format({"Tốc độ tối đa (km/h)": "{:.1f}"}),
-        use_container_width=True
-    )
-
-# ---------------------------------------------------------------------------
-# Vòng lặp xử lý chính
+# Xử lý Logic
 # ---------------------------------------------------------------------------
 if st.session_state["running"]:
-    if video_path is None and source_type == "Video":
-        st.warning("⚠️ Vui lòng tải lên một video trước khi bắt đầu!")
+    if video_path is None or (isinstance(video_path, str) and video_path == "rtsp://"):
+        st.warning("⚠️ Vui lòng cấu hình nguồn video/camera trước khi bắt đầu!")
         st.session_state["running"] = False
+        st.stop()
     else:
-        status_placeholder.markdown(
-            '<span class="status-running">● Đang xử lý…</span>',
-            unsafe_allow_html=True
-        )
+        render_status(status_placeholder, "running")
 
         with st.spinner("Đang khởi tạo mô hình…"):
             try:
@@ -387,32 +131,48 @@ if st.session_state["running"]:
                 st.session_state["running"] = False
                 st.stop()
 
-            cap = cv2.VideoCapture(video_path)
+            if isinstance(video_path, str) and video_path.isdigit():
+                cap_source = int(video_path)
+            else:
+                cap_source = video_path
+
+            cap = cv2.VideoCapture(cap_source)
             if not cap.isOpened():
                 st.error("❌ Không thể mở nguồn video/camera.")
                 st.session_state["running"] = False
                 st.stop()
 
-        # --- Thông tin video ---
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
         frame_w = frame_size
         frame_h = frame_size
 
-        estimator = SpeedEstimator(SRC_PTS, REAL_WIDTH, REAL_LENGTH)
+        out = None
+        if save_output_video:
+            try:
+                temp_out = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+                temp_out_path = temp_out.name
+                temp_out.close()
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                fps_video = int(cap.get(cv2.CAP_PROP_FPS)) or 30
+                out = cv2.VideoWriter(temp_out_path, fourcc, fps_video, (frame_w, frame_h))
+                st.session_state["output_video_path"] = temp_out_path
+            except Exception as e:
+                st.warning(f"Không thể khởi tạo bộ ghi video: {e}")
+                out = None
 
-        # Override cleanup time từ sidebar
-        import main as _main_module
-        _main_module.CLEANUP_TIME = cleanup_time
+        estimator = SpeedEstimator(
+            src_pts=roi_pts, real_width=real_width, real_length=real_length,
+            speed_limit=speed_limit, width=frame_w, height=frame_h,
+            cleanup_time=cleanup_time, distance_threshold=distance_threshold,
+            min_time_diff=min_time_diff
+        )
 
-        # Theo dõi thống kê
-        all_speeds: list[float] = []
-        seen_ids: set = set()
+        all_speeds = []
+        seen_ids = set()
         frame_idx = 0
         fps_timer = time.time()
+        violation_tracker = {}
 
-        # ---------------------------------------------------------------------------
-        # Vòng lặp frame
-        # ---------------------------------------------------------------------------
         while cap.isOpened() and st.session_state["running"]:
             flag, frame = cap.read()
             if not flag:
@@ -420,26 +180,19 @@ if st.session_state["running"]:
 
             frame_idx += 1
 
-            # --- Thời gian ---
             if source_type == "Camera (Webcam)":
                 current_time_sec = time.time()
             else:
                 current_time_sec = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
 
-            # --- Resize ---
             frame = cv2.resize(frame, (frame_w, frame_h))
-
-            # --- Cleanup + vẽ vùng đo ---
             estimator.cleanup(current_time_sec)
             cv2.polylines(
-                frame, [np.int32(SRC_PTS)],
+                frame, [np.int32(roi_pts)],
                 isClosed=True, color=(0, 255, 255), thickness=2
             )
 
-            # --- YOLO Tracking ---
-            results = model.track(
-                frame, persist=True, verbose=False, conf=conf_threshold
-            )
+            results = model.track(frame, persist=True, verbose=False, conf=conf_threshold)
 
             if results[0].boxes is not None and results[0].boxes.id is not None:
                 boxes   = results[0].boxes.xyxy.cpu().numpy()
@@ -451,57 +204,49 @@ if st.session_state["running"]:
                     xcenter  = int((x1 + x2) / 2)
                     bottom_y = int(y2)
 
-                    if cv2.pointPolygonTest(
-                        np.int32(SRC_PTS), (xcenter, bottom_y), False
-                    ) >= 0:
+                    if cv2.pointPolygonTest(np.int32(roi_pts), (xcenter, bottom_y), False) >= 0:
                         label = classes[cls_id]
-                        color = get_class_color(label)
+                        current_speed = estimator.update_and_get_speed(obj_id, label, (xcenter, bottom_y), current_time_sec)
 
-                        current_speed = estimator.update_and_get_speed(
-                            obj_id, label, (xcenter, bottom_y), current_time_sec
-                        )
-
-                        # Cập nhật thống kê
                         seen_ids.add(obj_id)
                         if current_speed is not None and current_speed > 0:
                             all_speeds.append(current_speed)
+                            
+                            if current_speed > speed_limit:
+                                color = (0, 0, 255)
+                                speed_color = (0, 0, 255)
+                                if obj_id not in violation_tracker:
+                                    violation_tracker[obj_id] = {
+                                        "ID xe": obj_id,
+                                        "Loại xe": label.capitalize(),
+                                        "Tốc độ vi phạm (km/h)": current_speed,
+                                        "Thời điểm": f"{current_time_sec:.1f}s"
+                                    }
+                                else:
+                                    if current_speed > violation_tracker[obj_id]["Tốc độ vi phạm (km/h)"]:
+                                        violation_tracker[obj_id]["Tốc độ vi phạm (km/h)"] = current_speed
+                            else:
+                                color = get_class_color(label)
+                                speed_color = (0, 255, 255)
+                        else:
+                            color = get_class_color(label)
+                            speed_color = (0, 255, 255)
 
-                        # --- Vẽ bounding box màu theo loại xe ---
-                        cv2.rectangle(
-                            frame,
-                            (int(x1), int(y1)), (int(x2), int(y2)),
-                            color, 2
-                        )
-                        # Nền nhãn
-                        label_text = f"{label}  ID:{obj_id}"
-                        (tw, th), _ = cv2.getTextSize(
-                            label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1
-                        )
+                        cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
+                        
+                        label_text = f"{label} ID:{obj_id}"
+                        (tw, th), _ = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
                         ty = max(int(y1) - 10, 20)
-                        cv2.rectangle(
-                            frame,
-                            (int(x1), ty - th - 4), (int(x1) + tw + 4, ty + 2),
-                            color, -1
-                        )
-                        cv2.putText(
-                            frame, label_text,
-                            (int(x1) + 2, ty),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1
-                        )
+                        cv2.rectangle(frame, (int(x1), ty - th - 4), (int(x1) + tw + 4, ty + 2), color, -1)
+                        cv2.putText(frame, label_text, (int(x1) + 2, ty), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-                        # Tốc độ
-                        cv2.circle(frame, (xcenter, bottom_y), 4, (0, 0, 255), -1)
-                        speed_str = (
-                            f"{current_speed:.1f} km/h"
-                            if current_speed is not None else "--- km/h"
-                        )
-                        draw_text_safe(
-                            frame, speed_str,
-                            (int(x2) - 60, int(y2) - 8),
-                            (0, 255, 255), 2
-                        )
+                        cv2.circle(frame, (xcenter, bottom_y), 4, color, -1)
+                        speed_str = f"{current_speed:.1f} km/h" if current_speed is not None else "--- km/h"
+                        draw_text_safe(frame, speed_str, (int(x2) - 60, int(y2) - 8), speed_color, 2)
 
-            # --- Tính FPS ---
+            if out is not None:
+                out.write(frame)
+
             elapsed = time.time() - fps_timer
             fps_val  = 1.0 / elapsed if elapsed > 0 else 0.0
             fps_timer = time.time()
@@ -509,7 +254,6 @@ if st.session_state["running"]:
             avg_spd = float(np.mean(all_speeds)) if all_speeds else 0.0
             max_spd = float(max(all_speeds))     if all_speeds else 0.0
 
-            # Cập nhật session state stats
             st.session_state["stats"] = {
                 "total_vehicles": len(seen_ids),
                 "avg_speed":      avg_spd,
@@ -517,99 +261,44 @@ if st.session_state["running"]:
                 "fps":            fps_val,
             }
 
-            # --- Cập nhật metric cards ---
-            metric_placeholder.markdown(f"""
-<div class="metric-grid">
-    <div class="metric-card">
-        <div class="metric-icon">🚘</div>
-        <div class="metric-value">{len(seen_ids)}</div>
-        <div class="metric-label">Tổng xe phát hiện</div>
-    </div>
-    <div class="metric-card">
-        <div class="metric-icon">📊</div>
-        <div class="metric-value">{avg_spd:.1f} <span style='font-size:1rem;color:#94a3b8'>km/h</span></div>
-        <div class="metric-label">Tốc độ trung bình</div>
-    </div>
-    <div class="metric-card">
-        <div class="metric-icon">🏎️</div>
-        <div class="metric-value">{max_spd:.1f} <span style='font-size:1rem;color:#94a3b8'>km/h</span></div>
-        <div class="metric-label">Tốc độ cao nhất</div>
-    </div>
-    <div class="metric-card">
-        <div class="metric-icon">⚡</div>
-        <div class="metric-value">{fps_val:.1f}</div>
-        <div class="metric-label">FPS xử lý</div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+            render_metrics(metric_placeholder, st.session_state["stats"])
+            render_violations_realtime(violation_title_placeholder, violation_placeholder, violation_tracker)
 
-            # --- Progress bar (chỉ khi có tổng frames) ---
             if total_frames > 0 and source_type == "Video":
                 pct = min(frame_idx / total_frames, 1.0)
-                progress_placeholder.progress(
-                    pct,
-                    text=f"Frame {frame_idx}/{total_frames} — {pct*100:.1f}%"
-                )
+                progress_placeholder.progress(pct, text=f"Frame {frame_idx}/{total_frames} — {pct*100:.1f}%")
 
-            # --- Hiển thị frame ---
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             stframe.image(frame_rgb, channels="RGB", use_container_width=True)
 
-        # --- Kết thúc vòng lặp ---
         cap.release()
+        if out is not None:
+            out.release()
 
-        # Thu thập speed log từ estimator
         speed_log = []
         for vid, spd in estimator.max_speed.items():
             lbl = estimator.labels.get(vid, "Unknown")
             speed_log.append({"id": vid, "label": lbl, "max_speed": spd})
         estimator.final_cleanup()
 
-        # Lưu vào session state
         st.session_state["speed_log"] = speed_log
+        st.session_state["violation_log"] = list(violation_tracker.values())
         st.session_state["running"]   = False
 
         progress_placeholder.empty()
-        status_placeholder.markdown(
-            '<span class="status-stopped">✔ Hoàn tất xử lý</span>',
-            unsafe_allow_html=True
-        )
-
-        # --- Bảng kết quả ---
-        if speed_log:
-            st.markdown("---")
-            st.markdown("### 📋 Bảng tốc độ tối đa từng xe")
-            df = pd.DataFrame(speed_log)
-            df = df.sort_values("max_speed", ascending=False).reset_index(drop=True)
-            df.index += 1
-            df.columns = ["ID xe", "Loại xe", "Tốc độ tối đa (km/h)"]
-            table_placeholder.dataframe(
-                df.style.format({"Tốc độ tối đa (km/h)": "{:.1f}"}),
-                use_container_width=True
-            )
-        else:
-            st.info("Không có dữ liệu tốc độ xe nào được ghi nhận trong vùng đo.")
+        render_status(status_placeholder, "stopped")
+        
+        try:
+            st.rerun()
+        except AttributeError:
+            st.experimental_rerun()
 
 else:
-    # Trạng thái idle
-    status_placeholder.markdown(
-        '<span class="status-idle">○ Chờ bắt đầu</span>',
-        unsafe_allow_html=True
-    )
-    stframe.markdown("""
-    <div style="
-        height: 360px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        color: #334155;
-        border: 2px dashed #1e293b;
-        border-radius: 12px;
-        gap: 12px;
-    ">
-        <div style="font-size: 3rem">📹</div>
-        <div style="font-size: 1rem; font-weight: 600">Chọn nguồn video và nhấn Bắt đầu</div>
-        <div style="font-size: 0.8rem; color: #475569">Video sẽ xuất hiện tại đây</div>
-    </div>
-    """, unsafe_allow_html=True)
+    render_status(status_placeholder, "idle")
+    render_idle_screen(stframe)
+    render_metrics(metric_placeholder, st.session_state["stats"])
+    render_violations_history(violation_title_placeholder, violation_placeholder, st.session_state.get("violation_log", []))
+    render_history_and_charts(col_history, col_chart, 
+                              st.session_state.get("speed_log", []), 
+                              st.session_state.get("violation_log", []), 
+                              st.session_state.get("output_video_path"))
