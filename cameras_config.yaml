@@ -2,20 +2,20 @@ cameras:
   cam_1:
     video_source: "rtsp://admin:EMPJAD@192.168.2.1:554/h264/ch1/main/av_stream"
     src_pts: [[381, 92], [145, 171], [271, 372], [630, 160]]
-    real_width: 4.5
-    real_length: 18.0
+    real_width: 8
+    real_length: 15.0
     speed_limit: 25.0
     save_output: false
     output_path: "output_cam_1.mp4"
 
-  # cam_2:
-  #   video_source: 1 # Webcam thứ hai (hoặc RTSP URL)
-  #   src_pts: [[100, 100], [540, 100], [600, 500], [40, 500]]
-  #   real_width: 3.5
-  #   real_length: 15.0
-  #   speed_limit: 50.0
-  #   save_output: false
-  #   output_path: "output_cam_2.mp4"
+  cam_2:
+    video_source: "rtsp://admin:LWSOXK@192.168.2.1:554/h264/ch1/main/av_stream"
+    src_pts: [[32, 238], [450, 483], [601, 244], [381, 187]]
+    real_width: 3.5
+    real_length: 15.0
+    speed_limit: 50.0
+    save_output: false
+    output_path: "output_cam_2.mp4"
 #highway
 # line1= [(250, 79), (445, 82)]
 # line2= [(94, 342), (597, 354)]
