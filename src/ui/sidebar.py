@@ -44,11 +44,13 @@ def preview_roi(video_source, points, frame_size):
 
 
 def render_sidebar(CONFIG_PATH):
+    # ---- Brand ----
     st.markdown("""
-    <div style='text-align:center; padding: 12px 0 4px;'>
-        <div style='font-size:2.5rem'>🚗</div>
-        <div style='font-weight:700; font-size:1rem; color:#38bdf8'>Speed Estimator</div>
-        <div style='font-size:0.75rem; color:#475569'>YOLOv8 + Homography</div>
+    <div class="sidebar-brand">
+        <div class="sidebar-brand-icon">🚗</div>
+        <div class="sidebar-brand-title">Speed Estimator</div>
+        <div class="sidebar-brand-sub">YOLOv8 + Homography</div>
+        <div class="sidebar-brand-ver">v2.0</div>
     </div>
     """, unsafe_allow_html=True)
     st.markdown("---")
@@ -63,10 +65,14 @@ def render_sidebar(CONFIG_PATH):
         except Exception as e:
             st.error(f"Lỗi đọc config YAML: {e}")
 
-    st.markdown("**📂 Nguồn đầu vào & Cấu hình**")
-    source_options = ["Tải lên Video", "Nhập RTSP URL", "Webcam ID"]
+    # ================================================================
+    # SECTION 1: Nguồn đầu vào
+    # ================================================================
+    st.markdown('<div class="sidebar-section-title">📂 NGUỒN ĐẦU VÀO</div>', unsafe_allow_html=True)
+
+    source_options = ["📁 Tải lên Video", "🌐 Nhập RTSP URL", "🖥️ Webcam ID"]
     if cameras_dict:
-        source_options = [f"Camera: {cam}" for cam in cameras_dict.keys()] + source_options
+        source_options = [f"📷 Camera: {cam}" for cam in cameras_dict.keys()] + source_options
 
     selected_source = st.selectbox(
         "Chọn cấu hình/nguồn:",
@@ -84,8 +90,8 @@ def render_sidebar(CONFIG_PATH):
     video_path = None
     source_type = "Video"  # Dùng để quyết định cách xử lý thời gian thực
 
-    if selected_source.startswith("Camera:"):
-        cam_name = selected_source.replace("Camera: ", "")
+    if "Camera:" in selected_source:
+        cam_name = selected_source.split("Camera: ")[-1]
         cam_cfg = cameras_dict.get(cam_name, {})
         default_source = cam_cfg.get("video_source", 0)
         
@@ -97,7 +103,7 @@ def render_sidebar(CONFIG_PATH):
         default_real_length = cam_cfg.get("real_length", default_real_length)
         default_speed_limit = cam_cfg.get("speed_limit", default_speed_limit)
         
-        st.info(f"Đã tải cấu hình camera: {cam_name}")
+        st.success(f"✅ Đã tải cấu hình: **{cam_name}**")
         
         if isinstance(default_source, str) and not default_source.isdigit():
             video_path = default_source
@@ -109,7 +115,7 @@ def render_sidebar(CONFIG_PATH):
             video_path = int(default_source)
             source_type = "Camera (Webcam)"
             
-    elif selected_source == "Tải lên Video":
+    elif "Tải lên Video" in selected_source:
         uploaded_file = st.file_uploader(
             "Tải lên video", type=["mp4", "avi", "mov"],
             help="Hỗ trợ mp4, avi, mov"
@@ -120,27 +126,31 @@ def render_sidebar(CONFIG_PATH):
             video_path = tfile.name
         source_type = "Video"
         
-    elif selected_source == "Nhập RTSP URL":
+    elif "RTSP" in selected_source:
         rtsp_url = st.text_input("Nhập RTSP URL:", value="rtsp://")
         video_path = rtsp_url
         source_type = "Camera (Webcam)"
         
-    elif selected_source == "Webcam ID":
+    elif "Webcam" in selected_source:
         camera_id = st.number_input("Camera ID", min_value=0, max_value=5, value=0, step=1)
         video_path = int(camera_id)
         source_type = "Camera (Webcam)"
 
     st.markdown("---")
 
-    # Kích thước khung ảnh xử lý (cần định nghĩa trước để preview_roi hoạt động chính xác)
+    # ================================================================
+    # SECTION 2: Kích thước frame
+    # ================================================================
     frame_size = st.select_slider(
-        "Kích thước khung xử lý (px)", options=[480, 640, 720], value=640,
+        "🖼️ Kích thước khung xử lý (px)", options=[480, 640, 720], value=640,
         help="Kích thước resize frame trước khi đưa vào YOLO"
     )
 
-    # Expander Hiệu chỉnh ROI
+    # ================================================================
+    # SECTION 3: ROI
+    # ================================================================
     with st.expander("📐 Hiệu chỉnh Vùng đo (ROI)", expanded=False):
-        st.write("Nhập tọa độ x, y của 4 điểm (px) ứng với khung hình kích thước trên:")
+        st.caption("Nhập tọa độ x, y của 4 điểm (px) ứng với khung hình:")
         col_roi1, col_roi2 = st.columns(2)
         with col_roi1:
             p1_x = st.number_input("P1 (TL) X", value=int(default_pts[0][0]), step=1)
@@ -166,57 +176,79 @@ def render_sidebar(CONFIG_PATH):
                     else:
                         st.error("Không thể lấy frame từ nguồn video này.")
 
-    st.markdown("---")
-    st.markdown("**⚙️ Tham số Ước lượng & YOLO**")
+    # ================================================================
+    # SECTION 4: Tham số YOLO & Homography
+    # ================================================================
+    with st.expander("🎛️ Tham số YOLO & Ước lượng", expanded=False):
+        conf_threshold = st.slider(
+            "YOLO Confidence Threshold", min_value=0.1, max_value=0.9,
+            value=0.35, step=0.05,
+            help="Ngưỡng tin cậy tối thiểu để nhận diện vật thể"
+        )
+        speed_limit = st.number_input(
+            "Giới hạn tốc độ (km/h)", min_value=1.0, max_value=200.0,
+            value=float(default_speed_limit), step=5.0,
+            help="Giới hạn tốc độ của làn đường này"
+        )
+        real_width = st.number_input(
+            "Chiều rộng đường (m)", min_value=1.0, max_value=50.0,
+            value=float(default_real_width), step=0.5,
+            help="Chiều rộng thực tế đường trong vùng ROI"
+        )
+        real_length = st.number_input(
+            "Chiều dài đường (m)", min_value=1.0, max_value=200.0,
+            value=float(default_real_length), step=1.0,
+            help="Chiều dài thực tế đường trong vùng ROI"
+        )
 
-    conf_threshold = st.slider(
-        "YOLO Confidence Threshold", min_value=0.1, max_value=0.9,
-        value=0.35, step=0.05,
-        help="Ngưỡng tin cậy tối thiểu để nhận diện vật thể"
-    )
-    speed_limit = st.number_input(
-        "Giới hạn tốc độ (km/h)", min_value=1.0, max_value=200.0,
-        value=float(default_speed_limit), step=5.0,
-        help="Giới hạn tốc độ của làn đường này để phát hiện vi phạm"
-    )
-    real_width = st.number_input(
-        "Chiều rộng đường thực tế (m)", min_value=1.0, max_value=50.0,
-        value=float(default_real_width), step=0.5,
-        help="Chiều rộng thực tế của đường (khoảng cách ngang thực tế trong vùng ROI)"
-    )
-    real_length = st.number_input(
-        "Chiều dài đường thực tế (m)", min_value=1.0, max_value=200.0,
-        value=float(default_real_length), step=1.0,
-        help="Chiều dài thực tế của đường (khoảng cách dọc thực tế trong vùng ROI)"
-    )
-    cleanup_time = st.slider(
-        "Cleanup Time (giây)", min_value=1.0, max_value=10.0,
-        value=2.0, step=0.5,
-        help="Thời gian xóa ID xe khỏi bộ nhớ sau khi xe đi khỏi khung hình"
-    )
-    distance_threshold = st.slider(
-        "Distance Threshold (m)", min_value=0.1, max_value=5.0,
-        value=0.5, step=0.1,
-        help="Khoảng cách tối thiểu xe dịch chuyển để cập nhật tốc độ"
-    )
-    min_time_diff = st.slider(
-        "Min Time Diff (giây)", min_value=0.1, max_value=2.0,
-        value=0.3, step=0.1,
-        help="Khoảng thời gian tối thiểu giữa 2 lần cập nhật để tính vận tốc"
-    )
+    # ================================================================
+    # SECTION 5: Tham số nâng cao
+    # ================================================================
+    with st.expander("⚙️ Tham số Nâng cao", expanded=False):
+        cleanup_time = st.slider(
+            "Cleanup Time (giây)", min_value=1.0, max_value=10.0,
+            value=2.0, step=0.5,
+            help="Thời gian xóa ID xe khỏi bộ nhớ sau khi xe đi khỏi khung hình"
+        )
+        distance_threshold = st.slider(
+            "Distance Threshold (m)", min_value=0.1, max_value=5.0,
+            value=0.5, step=0.1,
+            help="Khoảng cách tối thiểu xe dịch chuyển để cập nhật tốc độ"
+        )
+        min_time_diff = st.slider(
+            "Min Time Diff (giây)", min_value=0.1, max_value=2.0,
+            value=0.3, step=0.1,
+            help="Khoảng thời gian tối thiểu giữa 2 lần cập nhật tốc độ"
+        )
     
     save_output_video = st.checkbox(
-        "Ghi và lưu video kết quả", value=False,
+        "💾 Ghi và lưu video kết quả", value=False,
         help="Lưu lại video đã xử lý để tải xuống sau khi chạy xong"
     )
 
     st.markdown("---")
 
+    # ================================================================
+    # BUTTONS: Start / Stop
+    # ================================================================
     col_start, col_stop = st.columns(2)
     with col_start:
+        st.markdown('<div class="start-btn">', unsafe_allow_html=True)
         start_btn = st.button("▶ Bắt đầu", use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
     with col_stop:
+        st.markdown('<div class="stop-btn">', unsafe_allow_html=True)
         stop_btn = st.button("⏹ Dừng", use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # Quick status
+    if st.session_state.get("running"):
+        st.markdown(
+            '<div style="text-align:center; margin-top:8px;">'
+            '<span class="status-running" style="font-size:0.72rem; padding:3px 10px;">'
+            '<span class="pulse-dot" style="width:6px;height:6px;"></span> Đang xử lý</span></div>',
+            unsafe_allow_html=True
+        )
 
     if start_btn:
         st.session_state["running"] = True
@@ -224,7 +256,7 @@ def render_sidebar(CONFIG_PATH):
         st.session_state["violation_log"] = []
         st.session_state["stats"] = {
             "total_vehicles": 0, "avg_speed": 0.0,
-            "max_speed": 0.0, "fps": 0.0,
+            "max_speed": 0.0, "fps": 0.0, "violations": 0,
         }
         st.session_state["output_video_path"] = None
 

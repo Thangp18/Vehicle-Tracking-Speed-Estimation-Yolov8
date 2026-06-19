@@ -9,7 +9,7 @@ cameras:
     output_path: "output_cam_1.mp4"
 
   cam_2:
-    video_source: "rtsp://admin:LWSOXK@192.168.2.2:554/h264/ch1/main/av_stream"
+    video_source: "rtsp://admin:LWSOXK@camaithangp18.serveftp.com:555/h264/ch1/main/av_stream"
     src_pts: [[32, 238], [450, 483], [601, 244], [381, 187]]
     real_width: 3.5
     real_length: 15.0

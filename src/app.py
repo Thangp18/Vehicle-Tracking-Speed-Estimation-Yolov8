@@ -16,9 +16,9 @@ from utils.video_stream import VideoStream
 from ui.styles import apply_custom_css, get_class_color
 from ui.sidebar import render_sidebar
 from ui.dashboard import (
-    render_header, render_status, render_metrics, 
-    render_violations_realtime, render_violations_history, 
-    render_idle_screen, render_history_and_charts
+    render_header, render_status, render_metrics_row,
+    render_violations_realtime, render_violations_history,
+    render_idle_screen, render_results_tabs
 )
 
 # ---------------------------------------------------------------------------
@@ -63,7 +63,7 @@ if "violation_log" not in st.session_state:
 if "stats" not in st.session_state:
     st.session_state["stats"] = {
         "total_vehicles": 0, "avg_speed": 0.0,
-        "max_speed": 0.0, "fps": 0.0,
+        "max_speed": 0.0, "fps": 0.0, "violations": 0,
     }
 if "output_video_path" not in st.session_state:
     st.session_state["output_video_path"] = None
@@ -96,20 +96,26 @@ render_header()
 status_placeholder = st.empty()
 progress_placeholder = st.empty()
 
-col_video_main, col_metrics_main = st.columns([7, 3])
+# Metric row — 5 cards ngang (phía trên video)
+metrics_row_placeholder = st.empty()
+render_metrics_row(metrics_row_placeholder, st.session_state["stats"])
+
+# Video + Violations layout
+col_video_main, col_violations_main = st.columns([7, 3])
 
 with col_video_main:
     st.markdown('<div class="video-container">', unsafe_allow_html=True)
     stframe = st.empty()
     st.markdown('</div>', unsafe_allow_html=True)
 
-with col_metrics_main:
-    metric_placeholder = st.empty()
+with col_violations_main:
     violation_title_placeholder = st.empty()
     violation_placeholder = st.empty()
 
 st.markdown("---")
-col_history, col_chart = st.columns([1, 1])
+
+# Results section — Tabbed
+results_container = st.container()
 
 # ---------------------------------------------------------------------------
 # Xử lý Logic
@@ -268,10 +274,11 @@ if st.session_state["running"]:
                 "avg_speed":      avg_spd,
                 "max_speed":      max_spd,
                 "fps":            fps_val,
+                "violations":     len(violation_tracker),
             }
 
-            render_metrics(metric_placeholder, st.session_state["stats"])
-            render_violations_realtime(violation_title_placeholder, violation_placeholder, violation_tracker)
+            render_metrics_row(metrics_row_placeholder, st.session_state["stats"])
+            render_violations_realtime(violation_title_placeholder, violation_placeholder, violation_tracker, speed_limit)
 
             if total_frames > 0 and source_type == "Video":
                 pct = min(frame_idx / total_frames, 1.0)
@@ -308,9 +315,16 @@ if st.session_state["running"]:
 else:
     render_status(status_placeholder, "idle")
     render_idle_screen(stframe)
-    render_metrics(metric_placeholder, st.session_state["stats"])
-    render_violations_history(violation_title_placeholder, violation_placeholder, st.session_state.get("violation_log", []))
-    render_history_and_charts(col_history, col_chart, 
-                              st.session_state.get("speed_log", []), 
-                              st.session_state.get("violation_log", []), 
-                              st.session_state.get("output_video_path"))
+    render_metrics_row(metrics_row_placeholder, st.session_state["stats"])
+    render_violations_history(
+        violation_title_placeholder, violation_placeholder,
+        st.session_state.get("violation_log", []), speed_limit
+    )
+    
+    with results_container:
+        render_results_tabs(
+            st.session_state.get("speed_log", []),
+            st.session_state.get("violation_log", []),
+            st.session_state.get("output_video_path"),
+            speed_limit
+        )
