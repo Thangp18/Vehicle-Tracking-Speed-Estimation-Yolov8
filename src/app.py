@@ -11,6 +11,7 @@ from ultralytics import YOLO
 from main import MODEL_PATH, YAML_PATH, SRC_PTS, REAL_WIDTH, REAL_LENGTH
 from core.speed_estimator import SpeedEstimator
 from utils.drawing_utils import draw_text_safe
+from utils.video_stream import VideoStream
 
 from ui.styles import apply_custom_css, get_class_color
 from ui.sidebar import render_sidebar
@@ -136,7 +137,11 @@ if st.session_state["running"]:
             else:
                 cap_source = video_path
 
-            cap = cv2.VideoCapture(cap_source)
+            if source_type == "Camera (Webcam)":
+                cap = VideoStream(cap_source).start()
+            else:
+                cap = cv2.VideoCapture(cap_source)
+
             if not cap.isOpened():
                 st.error("❌ Không thể mở nguồn video/camera.")
                 st.session_state["running"] = False
@@ -175,8 +180,12 @@ if st.session_state["running"]:
 
         while cap.isOpened() and st.session_state["running"]:
             flag, frame = cap.read()
-            if not flag:
-                break
+            if not flag or frame is None:
+                if source_type == "Camera (Webcam)":
+                    time.sleep(0.01)
+                    continue
+                else:
+                    break
 
             frame_idx += 1
 
@@ -271,7 +280,10 @@ if st.session_state["running"]:
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             stframe.image(frame_rgb, channels="RGB", use_container_width=True)
 
-        cap.release()
+        if source_type == "Camera (Webcam)":
+            cap.stop()
+        else:
+            cap.release()
         if out is not None:
             out.release()
 
