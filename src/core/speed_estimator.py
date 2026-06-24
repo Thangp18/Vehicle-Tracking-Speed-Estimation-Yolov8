@@ -11,7 +11,7 @@ class SpeedEstimator:
         top_two = sorted(pts[:2], key=lambda p: p[0])
         bottom_two = sorted(pts[2:], key=lambda p: p[0])
         
-        self.src_pts = np.array([top_two[0], top_two[1], bottom_two[1], bottom_two[0]], dtype=np.float32)
+        self.src_pts = np.array([top_two[0], top_two[1], bottom_two[1], bottom_two[0]], dtype=np.float32)# xếp theo chiều kim đồng hồ 
         self.speed_limit = speed_limit
         self.cleanup_time = cleanup_time
         self.distance_threshold = distance_threshold
