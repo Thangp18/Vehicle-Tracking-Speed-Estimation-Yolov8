@@ -165,14 +165,14 @@ def render_sidebar(CONFIG_PATH):
 
         roi_pts = np.array([[p1_x, p1_y], [p2_x, p2_y], [p3_x, p3_y], [p4_x, p4_y]], dtype=np.float32)
         
-        if st.button("👁 Xem trước Vùng đo", use_container_width=True):
+        if st.button("👁 Xem trước Vùng đo", width='stretch'):
             if video_path is None or (isinstance(video_path, str) and video_path == "rtsp://"):
                 st.warning("Vui lòng tải video hoặc cấu hình nguồn trước khi xem.")
             else:
                 with st.spinner("Đang lấy frame xem trước..."):
                     img_preview = preview_roi(video_path, roi_pts, frame_size)
                     if img_preview is not None:
-                        st.image(img_preview, caption="Ảnh xem trước vùng đo", use_container_width=True)
+                        st.image(img_preview, caption="Ảnh xem trước vùng đo", width='stretch')
                     else:
                         st.error("Không thể lấy frame từ nguồn video này.")
 
@@ -220,6 +220,10 @@ def render_sidebar(CONFIG_PATH):
             value=0.3, step=0.1,
             help="Khoảng thời gian tối thiểu giữa 2 lần cập nhật tốc độ"
         )
+        csv_output_path = st.text_input(
+            "Đường dẫn file CSV vi phạm", value="violations.csv",
+            help="Đường dẫn lưu file CSV chứa danh sách xe vi phạm"
+        )
     
     save_output_video = st.checkbox(
         "💾 Ghi và lưu video kết quả", value=False,
@@ -234,11 +238,11 @@ def render_sidebar(CONFIG_PATH):
     col_start, col_stop = st.columns(2)
     with col_start:
         st.markdown('<div class="start-btn">', unsafe_allow_html=True)
-        start_btn = st.button("▶ Bắt đầu", use_container_width=True)
+        start_btn = st.button("▶ Bắt đầu", width='stretch')
         st.markdown('</div>', unsafe_allow_html=True)
     with col_stop:
         st.markdown('<div class="stop-btn">', unsafe_allow_html=True)
-        stop_btn = st.button("⏹ Dừng", use_container_width=True)
+        stop_btn = st.button("⏹ Dừng", width='stretch')
         st.markdown('</div>', unsafe_allow_html=True)
 
     # Quick status
@@ -275,5 +279,6 @@ def render_sidebar(CONFIG_PATH):
         "cleanup_time": cleanup_time,
         "distance_threshold": distance_threshold,
         "min_time_diff": min_time_diff,
-        "save_output_video": save_output_video
+        "save_output_video": save_output_video,
+        "csv_output_path": csv_output_path
     }

@@ -87,6 +87,7 @@ cleanup_time = sidebar_params["cleanup_time"]
 distance_threshold = sidebar_params["distance_threshold"]
 min_time_diff = sidebar_params["min_time_diff"]
 save_output_video = sidebar_params["save_output_video"]
+csv_output_path = sidebar_params["csv_output_path"]
 
 # ---------------------------------------------------------------------------
 # Main Area
@@ -183,6 +184,10 @@ if st.session_state["running"]:
         frame_idx = 0
         fps_timer = time.time()
         violation_tracker = {}
+        
+        from utils.csv_logger import CSVLogger
+        csv_logger = CSVLogger(csv_output_path)
+        logged_violations = set()
 
         while cap.isOpened() and st.session_state["running"]:
             flag, frame = cap.read()
@@ -237,6 +242,9 @@ if st.session_state["running"]:
                                         "Tốc độ vi phạm (km/h)": current_speed,
                                         "Thời điểm": f"{current_time_sec:.1f}s"
                                     }
+                                    if obj_id not in logged_violations:
+                                        csv_logger.log_violation(obj_id, label, current_time_sec, source_type)
+                                        logged_violations.add(obj_id)
                                 else:
                                     if current_speed > violation_tracker[obj_id]["Tốc độ vi phạm (km/h)"]:
                                         violation_tracker[obj_id]["Tốc độ vi phạm (km/h)"] = current_speed
@@ -285,7 +293,7 @@ if st.session_state["running"]:
                 progress_placeholder.progress(pct, text=f"Frame {frame_idx}/{total_frames} — {pct*100:.1f}%")
 
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            stframe.image(frame_rgb, channels="RGB", use_container_width=True)
+            stframe.image(frame_rgb, channels="RGB", width='stretch')
 
         if source_type == "Camera (Webcam)":
             cap.stop()

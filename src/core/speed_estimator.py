@@ -42,15 +42,22 @@ class SpeedEstimator:
         real_x, real_y = self.transform_point(point)
 
         if vehicle_id not in self.history:
-            self.history[vehicle_id] = deque(maxlen=10)
+            self.history[vehicle_id] = deque(maxlen=100)
             self.history[vehicle_id].append((real_x, real_y, current_time))
             return None
 
         history = self.history[vehicle_id]
-        old_x, old_y, old_time = history[0]
-        time_diff = current_time - old_time
+        
+        # Tìm điểm cũ nhất trong lịch sử đạt tối thiểu min_time_diff
+        old_x, old_y, old_time = None, None, None
+        for i in range(len(history) - 1, -1, -1):
+            x, y, t = history[i]
+            if current_time - t >= self.min_time_diff:
+                old_x, old_y, old_time = x, y, t
+                break
 
-        if time_diff > self.min_time_diff:
+        if old_time is not None:
+            time_diff = current_time - old_time
             distance = math.hypot(real_x - old_x, real_y - old_y)
             speed_kmph = 0.0 if distance < self.distance_threshold else (distance / time_diff) * 3.6
             

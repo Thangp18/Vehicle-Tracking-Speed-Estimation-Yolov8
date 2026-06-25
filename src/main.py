@@ -43,6 +43,7 @@ def args_parser():
     parser.add_argument('--speed_limit', '-sl', type=float, default=SPEED_LIMIT, help='Speed limit')
     parser.add_argument('--output', '-o', type=str, default='output_speed.mp4', help='Path to output video file')
     parser.add_argument('--save', '-s', type=bool, default=True, help='Save output video')
+    parser.add_argument('--csv', '-csv', type=str, default='violations.csv', help='Path to output CSV file for speed violations')
     return parser.parse_args()
 
 def main(args):
@@ -59,6 +60,7 @@ def main(args):
     speed_limit = args.speed_limit
     save_output = args.save
     output_path = args.output
+    csv_output = args.csv
 
     if args.config and args.camera:
         if not os.path.exists(args.config):
@@ -81,6 +83,7 @@ def main(args):
         speed_limit = cam_cfg.get('speed_limit', speed_limit)
         save_output = cam_cfg.get('save_output', save_output)
         output_path = cam_cfg.get('output_path', output_path)
+        csv_output = cam_cfg.get('csv_output_path', csv_output)
 
     if isinstance(camera_source, str) and camera_source.isdigit():
         camera_source = int(camera_source)
@@ -100,13 +103,23 @@ def main(args):
         args.cleanup_time, args.distance_threshold, args.min_time_diff
     )
     start_time = time.time()
+    
+    is_live = isinstance(camera_source, int) or (isinstance(camera_source, str) and camera_source.startswith("rtsp"))
+    source_type = "Camera (Webcam)" if is_live else "Video"
+    
+    from utils.csv_logger import CSVLogger
+    csv_logger = CSVLogger(csv_output)
+    logged_violations = set()
 
     while cap.isOpened():
         flag, frame = cap.read()
         if not flag or frame is None: 
             continue
             
-        current_time_sec = time.time() - start_time
+        if source_type == "Camera (Webcam)":
+            current_time_sec = time.time() - start_time
+        else:
+            current_time_sec = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
             
         frame = cv2.resize(frame, (width, height))
         
@@ -132,6 +145,9 @@ def main(args):
                     if current_speed is not None and current_speed > speed_limit:
                         color = (100, 100, 255) 
                         speed_text_color = (100, 100, 255)
+                        if obj_id not in logged_violations:
+                            csv_logger.log_violation(obj_id, label, current_time_sec, source_type)
+                            logged_violations.add(obj_id)
                     else:
                         color = (100, 255, 100)  
                         speed_text_color = (100, 255, 100) 

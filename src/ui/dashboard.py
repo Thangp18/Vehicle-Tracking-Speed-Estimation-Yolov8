@@ -344,7 +344,7 @@ def render_results_tabs(speed_log, violation_log, output_vid_path, speed_limit=2
         df_display.columns = ["ID xe", "Loại xe", "Tốc độ tối đa (km/h)"]
         st.dataframe(
             df_display.style.format({"Tốc độ tối đa (km/h)": "{:.1f}"}),
-            use_container_width=True
+            width='stretch'
         )
 
         if violation_log:
@@ -361,7 +361,7 @@ def render_results_tabs(speed_log, violation_log, output_vid_path, speed_limit=2
             df_violations.index += 1
             st.dataframe(
                 df_violations.style.format({"Tốc độ vi phạm (km/h)": "{:.1f}"}),
-                use_container_width=True
+                width='stretch'
             )
 
     # ---- Tab 2: Phân tích ----
@@ -378,11 +378,11 @@ def render_results_tabs(speed_log, violation_log, output_vid_path, speed_limit=2
             if HAS_PLOTLY:
                 col_chart1, col_chart2 = st.columns(2)
                 with col_chart1:
-                    st.plotly_chart(_render_plotly_class_chart(df), use_container_width=True)
+                    st.plotly_chart(_render_plotly_class_chart(df), width='stretch')
                 with col_chart2:
-                    st.plotly_chart(_render_plotly_histogram(df), use_container_width=True)
+                    st.plotly_chart(_render_plotly_histogram(df), width='stretch')
                 
-                st.plotly_chart(_render_plotly_speed_bar(df, speed_limit), use_container_width=True)
+                st.plotly_chart(_render_plotly_speed_bar(df, speed_limit), width='stretch')
             else:
                 _render_fallback_charts(df)
 
@@ -412,7 +412,7 @@ def render_results_tabs(speed_log, violation_log, output_vid_path, speed_limit=2
             file_name="bao_cao_toc_do.csv",
             mime="text/csv",
             key="download_csv_history",
-            use_container_width=True
+            width='stretch'
         )
 
         # Violation report CSV
@@ -431,7 +431,7 @@ def render_results_tabs(speed_log, violation_log, output_vid_path, speed_limit=2
                 file_name="danh_sach_vi_pham.csv",
                 mime="text/csv",
                 key="download_csv_violations",
-                use_container_width=True
+                width='stretch'
             )
 
         # Output video
@@ -449,7 +449,7 @@ def render_results_tabs(speed_log, violation_log, output_vid_path, speed_limit=2
                     file_name="video_ket_qua.mp4",
                     mime="video/mp4",
                     key="download_processed_video",
-                    use_container_width=True
+                    width='stretch'
                 )
 
 

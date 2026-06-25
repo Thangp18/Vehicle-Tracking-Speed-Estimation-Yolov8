@@ -160,5 +160,12 @@ output_*.mov
 *.mp4
 *.avi
 *.mov
-!datasets/  # Do not ignore the datasets directory structure, but you might want to ignore large video files inside it if needed.
-# Since the datasets are already tracked by git, we don't ignore them, but we ignore general untracked media output.
+# Ignore datasets directory and its contents
+datasets/
+
+# Ignore all markdown files except README.md
+*.md
+**/*.md
+!README.md
+!**/README.md
+
