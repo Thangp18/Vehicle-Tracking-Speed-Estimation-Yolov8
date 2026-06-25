@@ -278,26 +278,34 @@ if st.session_state["running"]:
             fps_val  = 1.0 / elapsed if elapsed > 0 else 0.0
             fps_timer = time.time()
 
-            avg_spd = float(np.mean(all_speeds)) if all_speeds else 0.0
-            max_spd = float(max(all_speeds))     if all_speeds else 0.0
+            # --- OPTIMIZE STREAMLIT RENDERING ---
+            # Update UI elements only every 3 frames to drastically reduce WebSocket/DOM overhead,
+            # while keeping full frame processing speed.
+            UI_UPDATE_INTERVAL = 3
+            if frame_idx % UI_UPDATE_INTERVAL == 0:
+                avg_spd = float(np.mean(all_speeds)) if all_speeds else 0.0
+                max_spd = float(max(all_speeds))     if all_speeds else 0.0
 
-            st.session_state["stats"] = {
-                "total_vehicles": len(seen_ids),
-                "avg_speed":      avg_spd,
-                "max_speed":      max_spd,
-                "fps":            fps_val,
-                "violations":     len(violation_tracker),
-            }
+                st.session_state["stats"] = {
+                    "total_vehicles": len(seen_ids),
+                    "avg_speed":      avg_spd,
+                    "max_speed":      max_spd,
+                    "fps":            fps_val,
+                    "violations":     len(violation_tracker),
+                }
 
-            render_metrics_row(metrics_row_placeholder, st.session_state["stats"])
-            render_violations_realtime(violation_title_placeholder, violation_placeholder, violation_tracker, speed_limit)
+                render_metrics_row(metrics_row_placeholder, st.session_state["stats"])
+                render_violations_realtime(violation_title_placeholder, violation_placeholder, violation_tracker, speed_limit)
 
-            if total_frames > 0 and source_type == "Video":
-                pct = min(frame_idx / total_frames, 1.0)
-                progress_placeholder.progress(pct, text=f"Frame {frame_idx}/{total_frames} — {pct*100:.1f}%")
+                if total_frames > 0 and source_type == "Video":
+                    pct = min(frame_idx / total_frames, 1.0)
+                    progress_placeholder.progress(pct, text=f"Frame {frame_idx}/{total_frames} — {pct*100:.1f}%")
 
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            stframe.image(frame_rgb, channels="RGB", width='stretch')
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                stframe.image(frame_rgb, channels="RGB", width='stretch')
+
+            # Release GIL for 2ms to let Tornado web server transfer websocket packets smoothly
+            time.sleep(0.002)
 
         if source_type == "Camera (Webcam)":
             cap.stop()
