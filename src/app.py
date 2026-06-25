@@ -233,14 +233,18 @@ if st.session_state["running"]:
                             all_speeds.append(current_speed)
                             
                             if current_speed > speed_limit:
-                                color = (0, 0, 255)
-                                speed_color = (0, 0, 255)
+                                color = (100, 100, 255)
+                                speed_color = (100, 100, 255)
                                 if obj_id not in violation_tracker:
+                                    if source_type == "Camera (Webcam)":
+                                        time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(current_time_sec))
+                                    else:
+                                        time_str = f"{current_time_sec:.1f}s"
                                     violation_tracker[obj_id] = {
                                         "ID xe": obj_id,
                                         "Loại xe": label.capitalize(),
                                         "Tốc độ vi phạm (km/h)": current_speed,
-                                        "Thời điểm": f"{current_time_sec:.1f}s"
+                                        "Thời điểm": time_str
                                     }
                                     if obj_id not in logged_violations:
                                         csv_logger.log_violation(obj_id, label, current_time_sec, source_type)
@@ -249,11 +253,11 @@ if st.session_state["running"]:
                                     if current_speed > violation_tracker[obj_id]["Tốc độ vi phạm (km/h)"]:
                                         violation_tracker[obj_id]["Tốc độ vi phạm (km/h)"] = current_speed
                             else:
-                                color = get_class_color(label)
-                                speed_color = (0, 255, 255)
+                                color = (100, 255, 100)
+                                speed_color = (100, 255, 100)
                         else:
-                            color = get_class_color(label)
-                            speed_color = (0, 255, 255)
+                            color = (100, 255, 100)
+                            speed_color = (100, 255, 100)
 
                         cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
                         

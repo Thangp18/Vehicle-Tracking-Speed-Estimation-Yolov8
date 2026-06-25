@@ -114,25 +114,25 @@ def _get_severity_color(speed, limit=25.0):
 def _build_violation_html(v_list, speed_limit=25.0, max_items=10):
     """Tạo HTML cho violation cards"""
     if not v_list:
-        return """
-        <div style="color: #475569; font-style: italic; text-align: center; padding: 24px; font-size: 0.85rem;">
-            <div style="font-size: 2rem; margin-bottom: 8px; opacity: 0.5;">✅</div>
-            Chưa phát hiện vi phạm nào.
-        </div>
-        """
+        return (
+            '<div style="color: #475569; font-style: italic; text-align: center; padding: 24px; font-size: 0.85rem;">'
+            '<div style="font-size: 2rem; margin-bottom: 8px; opacity: 0.5;">✅</div>'
+            'Chưa phát hiện vi phạm nào.'
+            '</div>'
+        )
     
     v_html = '<div class="violation-container">'
     for v in v_list[:max_items]:
         severity = _get_severity_color(v['Tốc độ vi phạm (km/h)'], speed_limit)
-        v_html += f"""
-        <div class="violation-card" style="border-left-color: {severity};">
-            <div>
-                <span class="violation-title">⚠️ XE VƯỢT TỐC ĐỘ (ID: {v['ID xe']})</span>
-                <div class="violation-details">Loại: {v['Loại xe']} &nbsp;│&nbsp; Thời điểm: {v['Thời điểm']}</div>
-            </div>
-            <div class="violation-speed">{v['Tốc độ vi phạm (km/h)']:.1f} <span style="font-size:0.7rem;">km/h</span></div>
-        </div>
-        """
+        v_html += (
+            f'<div class="violation-card" style="border-left-color: {severity};">'
+            '<div>'
+            f'<span class="violation-title">⚠️ XE VƯỢT TỐC ĐỘ (ID: {v["ID xe"]})</span>'
+            f'<div class="violation-details">Loại: {v["Loại xe"]} &nbsp;│&nbsp; Thời điểm: {v["Thời điểm"]}</div>'
+            '</div>'
+            f'<div class="violation-speed">{v["Tốc độ vi phạm (km/h)"]:.1f} <span style="font-size:0.7rem;">km/h</span></div>'
+            '</div>'
+        )
     v_html += '</div>'
     return v_html
 

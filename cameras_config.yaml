@@ -1,7 +1,7 @@
 cameras:
   cam_1:
     video_source: "rtsp://admin:EMPJAD@camaithangp18.serveftp.com:554/h264/ch1/main/av_stream"
-    src_pts: [[125, 250], [393, 132], [619, 146], [245, 409]]
+    src_pts: [[332, 106], [18, 295], [278, 599], [628, 100]]
     real_width: 8
     real_length: 15.0
     speed_limit: 25.0
